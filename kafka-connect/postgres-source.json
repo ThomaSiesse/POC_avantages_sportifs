@@ -1,0 +1,28 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "plugin.name": "pgoutput",
+
+  "database.hostname": "postgres-source",
+  "database.port": "5432",
+  "database.user": "${env:SOURCE_DB_USER}",
+  "database.password": "${env:SOURCE_DB_PASSWORD}",
+  "database.dbname": "${env:SOURCE_DB_NAME}",
+
+  "topic.prefix": "sport",
+  "table.include.list": "public.activites",
+  "slot.name": "debezium_sport",
+  "publication.name": "debezium_sport",
+  "publication.autocreate.mode": "filtered",
+
+  "decimal.handling.mode": "string",
+
+  "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "key.converter.schemas.enable": "false",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "value.converter.schemas.enable": "false",
+
+  "transforms": "unwrap",
+  "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+  "transforms.unwrap.drop.tombstones": "true",
+  "transforms.unwrap.add.fields": "op,source.ts_ms"
+}

@@ -1,0 +1,221 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Source : base PostgreSQL alimentée par le générateur Python
+  # ---------------------------------------------------------------------------
+  postgres-source:
+    image: postgres:16
+    container_name: postgres-source
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: ${SOURCE_DB_USER:-app}
+      POSTGRES_PASSWORD: ${SOURCE_DB_PASSWORD:-app}
+      POSTGRES_DB: ${SOURCE_DB_NAME:-sport}
+    ports:
+      - "5435:5432" # 5432 déjà utilisé sur la machine hôte
+    volumes:
+      - postgres_source_data:/var/lib/postgresql/data
+      - ./postgres-source/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  generator:
+    build: ./generator
+    container_name: generator
+    environment:
+      DB_HOST: postgres-source
+      DB_PORT: 5432
+      DB_USER: ${SOURCE_DB_USER:-app}
+      DB_PASSWORD: ${SOURCE_DB_PASSWORD:-app}
+      DB_NAME: ${SOURCE_DB_NAME:-sport}
+      DATA_DIR: /app/data
+      GENERATION_INTERVAL_S: ${GENERATION_INTERVAL_S:-60} # 1 nouvelle activité par minute
+      ANOMALY_RATE: ${ANOMALY_RATE:-0.02} # 2 % d'activités incohérentes
+    volumes:
+      - ./data:/app/data:ro # fichiers Excel RH / Sportive
+    depends_on:
+      postgres-source:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # 2. Streaming : Kafka (mode KRaft, sans Zookeeper) + Kafka Connect (Debezium)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "29092:29092" # accès depuis la machine hôte (localhost:29092)
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # Debezium : lit le WAL de postgres-source et publie chaque changement dans Kafka
+  kafka-connect:
+    image: quay.io/debezium/connect:2.7
+    container_name: kafka-connect
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: connect-cluster
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      SOURCE_DB_USER: ${SOURCE_DB_USER:-app}
+      SOURCE_DB_PASSWORD: ${SOURCE_DB_PASSWORD:-app}
+      SOURCE_DB_NAME: ${SOURCE_DB_NAME:-sport}
+    ports:
+      - "8083:8083" 
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-source:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/connectors > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Job one-shot : enregistre (ou met à jour) le connecteur Debezium Postgres
+  kafka-connect-init:
+    image: curlimages/curl:8.10.1
+    container_name: kafka-connect-init
+    volumes:
+      - ./kafka-connect/postgres-source.json:/connector.json:ro
+    command: >
+      -sf -X PUT -H "Content-Type: application/json"
+      --data @/connector.json
+      http://kafka-connect:8083/connectors/postgres-source/config
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # 3. Consumers Kafka
+  # ---------------------------------------------------------------------------
+  consumer-slack:
+    build: ./consumers/slack
+    container_name: consumer-slack
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-sport.public.activites}
+      KAFKA_GROUP_ID: consumer-slack
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-SLACK_WEBHOOK_URL}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Envoie les données brutes vers MinIO puis déclenche dbt
+  consumer-minio:
+    build: ./consumers/minio
+    container_name: consumer-minio
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-sport.public.activites}
+      KAFKA_GROUP_ID: consumer-minio
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
+      MINIO_BUCKET_RAW: raw
+      MINIO_BUCKET_CLEAN: clean
+      S3_ENDPOINT: minio:9000
+      S3_USE_SSL: "false"
+      S3_URL_STYLE: path
+      DUCKDB_PATH: /duckdb/warehouse.duckdb
+      # Base qui reçoit les marts dbt (attachée par DuckDB via l'extension postgres)
+      DWH_HOST: postgres-dwh
+      DWH_PORT: 5432
+      DWH_USER: ${DWH_USER:-dwh}
+      DWH_PASSWORD: ${DWH_PASSWORD:-dwh}
+      DWH_DB: ${DWH_DB:-analytics}
+      DBT_PROJECT_DIR: /dbt
+      DBT_PROFILES_DIR: /dbt
+    volumes:
+      - ./dbt:/dbt
+      - duckdb_data:/duckdb
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      postgres-dwh:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # 4. Stockage objet : MinIO (données brutes + données nettoyées)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    container_name: minio 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Job one-shot : crée les buckets
+  minio-init:
+    build: ./minio_init
+    depends_on:
+      - minio
+    environment:
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: eu-west-3
+    restart: "no"
+  # ---------------------------------------------------------------------------
+  # 5. Data warehouse : PostgreSQL qui reçoit les marts dbt (lu par Power BI)
+  # ---------------------------------------------------------------------------
+  postgres-dwh:
+    image: postgres:16
+    container_name: postgres-dwh
+    environment:
+      POSTGRES_USER: ${DWH_USER:-dwh}
+      POSTGRES_PASSWORD: ${DWH_PASSWORD:-dwh}
+      POSTGRES_DB: ${DWH_DB:-analytics}
+    ports:
+      - "5436:5432" # Power BI se connecte sur localhost:5436 (5433 déjà utilisé)
+    volumes:
+      - postgres_dwh_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_source_data:
+  postgres_dwh_data:
+  minio_data:
+  duckdb_data:
