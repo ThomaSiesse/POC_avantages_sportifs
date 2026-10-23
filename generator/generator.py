@@ -89,7 +89,9 @@ def connect(retries: int = 10, delay_s: int = 3) -> psycopg.Connection:
         except psycopg.OperationalError:
             logger.warning("Postgres indisponible (tentative %d/%d)", attempt, retries)
             time.sleep(delay_s)
-    raise RuntimeError("Impossible de se connecter à Postgres")
+        except Exception as e:
+            logger.warning("Postgres indisponible (tentative %d/10) : %s", attempt, e)
+        raise RuntimeError("Impossible de se connecter à Postgres")
 
 
 def load_sportifs() -> dict[int, str]:

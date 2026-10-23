@@ -74,11 +74,16 @@ arborescence:
 Projet_12/
 ├── docker-compose.yaml                ✅
 ├── .env                               ✅ 
-├── .gitignore                         ✅ 
+├── .gitignore 
+├── README.md                          ✅ 
 │
-├── data/                              ✅ 
-│   ├── Données+RH.xlsx                ✅
-│   └── Données+Sportive.xlsx          ✅ 
+├── data/ 
+│   ├──minio/
+│   |   ├──.minio.sys/                 ✅
+│   |   ├── clean/                     ✅
+│   |   └── raw/                       ✅ 
+│   ├── donnees_rh.xlsx                ✅
+│   └── donnees_sportive.xlsx          ✅ 
 │
 ├── postgres-source/init/              ✅ 
 │   └── 01_tables.sql                  ✅
@@ -97,14 +102,14 @@ Projet_12/
 │   └── producer.py                    ❌
 │
 ├── consumers/
-│   ├── slack/                         ❌ build: ./consumers/slack
-│   │   ├── Dockerfile                 ❌
-│   │   ├── requirements.txt           ❌ confluent-kafka, requests
-│   │   └── consumer.py                ❌ filtre + envoi au webhook
-│   └── minio/                         ❌ build: ./consumers/minio
-│       ├── Dockerfile                 ❌
-│       ├── requirements.txt           ❌ confluent-kafka, boto3, dbt-duckdb
-│       └── consumer.py                ❌ écrit dans le bucket raw + lance dbt
+│   ├── slack/                         ✅ 
+│   │   ├── Dockerfile                 ✅
+│   │   ├── requirements.txt           ✅ 
+│   │   └── consumer_slack.py          ❌ filtre + envoi au webhook
+│   └── minio/                         ✅ 
+│       ├── Dockerfile                 ✅
+│       ├── requirements.txt           ✅ confluent-kafka, boto3, dbt-duckdb
+│       └── consumer_minio.py          ❌ écrit dans le bucket raw + lance dbt
 │
 └── dbt/                               ✅ monté dans consumer-minio (/dbt)
     ├── dbt_project.yml                ❌
@@ -144,3 +149,14 @@ Projet_12/
 ### Tâche:
     - mkdir consumers/slack/ Dockerfile, requirement.txt, consumers.py
 
+CONNECTER MINIO ET LANCER LE DOCKER COMPOSE
+    - docker compose ok
+
+
+docker ok
+generator ok
+
+A faire: Script python consumer_minio/ consumer_slack
+    Traitement données avec dbt
+    écriture dbt dans postgres-dwh
+    connexion power bi

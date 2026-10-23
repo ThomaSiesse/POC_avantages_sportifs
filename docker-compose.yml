@@ -29,7 +29,7 @@ services:
       DB_PORT: 5432
       DB_USER: ${SOURCE_DB_USER:-app}
       DB_PASSWORD: ${SOURCE_DB_PASSWORD:-app}
-      DB_NAME: ${SOURCE_DB_NAME:-sport}
+      DB_NAME: ${SOURCE_DB_NAME:-sport-data}
       DATA_DIR: /app/data
       GENERATION_INTERVAL_S: ${GENERATION_INTERVAL_S:-60} # 1 nouvelle activité par minute
       ANOMALY_RATE: ${ANOMALY_RATE:-0.02} # 2 % d'activités incohérentes
