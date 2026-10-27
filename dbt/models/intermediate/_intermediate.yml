@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: int_activites_controlees
+    description: Toutes les activités avec durée, vitesse et motif de rejet (NULL si valide).
+    columns:
+      - name: id_activite
+        tests: [unique, not_null]
+
+  - name: int_activites_valides
+    description: Activités sans motif de rejet, utilisées par les marts.
+    columns:
+      - name: id_activite
+        tests: [unique, not_null]
+
+  - name: int_distances_domicile
+    description: Distance domicile -> entreprise (Google Maps via SerpApi), mise en cache par salarié, adresse et mode.
+    config:
+      # les modèles Python ne lisent pas var() : l'adresse est passée par la config
+      adresse_entreprise: "{{ var('adresse_entreprise') }}"
+    columns:
+      - name: id_salarie
+        tests: [not_null]
+      - name: distance_km
+        description: NULL si Google ne trouve pas l'adresse (statut non_calcule).
+
+  - name: int_deplacements_controles
+    description: Déclarations de déplacement sportif avec statut ok / incoherent / non_calcule.
+    columns:
+      - name: id_salarie
+        tests: [unique, not_null]
+      - name: statut
+        tests:
+          - accepted_values:
+              arguments:
+                values: [ok, incoherent, non_calcule]

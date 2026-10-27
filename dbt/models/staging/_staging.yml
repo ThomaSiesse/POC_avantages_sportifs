@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: stg_activites
+    description: Activités sportives, dernière version connue de chaque activité.
+    columns:
+      - name: id_activite
+        tests: [unique, not_null]
+      - name: id_salarie
+        tests: [not_null]
+      - name: date_debut
+        tests: [not_null]
+      - name: date_fin
+        tests: [not_null]
+      - name: type_sport
+        tests: [not_null]
+
+  - name: stg_rh
+    description: Données RH des salariés.
+    columns:
+      - name: id_salarie
+        tests: [unique, not_null]
+
+  - name: stg_sportives
+    description: Sport déclaré par chaque salarié.
+    columns:
+      - name: id_salarie
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_rh')
+                field: id_salarie

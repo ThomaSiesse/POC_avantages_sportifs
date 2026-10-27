@@ -40,9 +40,9 @@ SPORT_COLUMNS = {"ID salarié": "id_salarie", "Pratique d'un sport": "sport"}
 
 # Sports avec distance : (distance min km, distance max km, vitesse min km/h, vitesse max km/h)
 DISTANCE_SPORTS = {
-    "Runing": (1, 50, 4, 15),
+    "Runing": (1, 30, 4, 15),
     "Randonnée": (5, 50, 1.5, 7.5),
-    "Triathlon": (5, 100, 8, 30),
+    "Triathlon": (5, 50, 8, 30),
     "Natation": (0.5, 10, 1, 6),
     "Voile": (2, 40, 4, 30),
     "Équitation": (1, 30, 4, 15),
@@ -129,8 +129,13 @@ def apply_anomaly(distance_m, date_debut, date_fin):
     return distance_m, date_debut, date_fin
 
 
-def build_activite(id_salarie: int, sport: str, date_debut: datetime) -> tuple:
+def build_activite(
+    id_salarie: int, sport: str, date_debut: datetime | None = None
+) -> tuple:
+    """Sans date_debut, l'activité se termine maintenant (activité live)."""
     distance_m, duration = generate_effort(sport)
+    if date_debut is None:
+        date_debut = datetime.now(TZ) - duration
     date_fin = date_debut + duration
     if random.random() < ANOMALY_RATE:
         distance_m, date_debut, date_fin = apply_anomaly(
@@ -186,8 +191,7 @@ def backfill(conn: psycopg.Connection, sportifs: dict[int, str]) -> None:
 def insert_live_activite(conn: psycopg.Connection, sportifs: dict[int, str]) -> None:
     """Insère une activité qui vient de se terminer."""
     id_salarie, sport = random.choice(list(sportifs.items()))
-    _, duration = generate_effort(sport)
-    row = build_activite(id_salarie, sport, datetime.now(TZ) - duration)
+    row = build_activite(id_salarie, sport)
     with conn.cursor() as cur:
         cur.execute(INSERT_ACTIVITE, row)
     conn.commit()

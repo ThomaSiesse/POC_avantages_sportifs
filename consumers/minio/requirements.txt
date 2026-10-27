@@ -1,4 +1,7 @@
-confluent-kafka
-deltalake
-pandas
-pyarrow
+confluent-kafka==2.6.1
+dbt-core==1.12.6
+dbt-duckdb==1.9.1
+deltalake==0.22.3
+duckdb==1.2.2
+pyarrow==18.1.0
+requests==2.32.3

@@ -3,3 +3,6 @@
 data/
 
 venv/
+dbt/target/
+dbt/logs/
+dbt/.user.yml

@@ -1,0 +1,15 @@
+version: 2
+
+seeds:
+  - name: regles_sports
+    description: Vitesse moyenne maximale réaliste par sport (sports avec distance).
+    config:
+      column_types:
+        vitesse_max_kmh: double
+
+  - name: regles_deplacement
+    description: Distance domicile-travail maximale par mode de déplacement sportif.
+    config:
+      column_types:
+        distance_max_km: double
+        travel_mode: integer # SerpApi : 1 = vélo, 2 = marche

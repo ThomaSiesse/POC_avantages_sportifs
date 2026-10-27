@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  # Table Delta écrite par consumer-minio (événements Debezium bruts)
+  - name: minio_raw
+    tables:
+      - name: activites
+        meta:
+          external_location: "delta_scan('s3://raw/activites')"
+
+  # Fichiers Excel fournis par l'entreprise (dossier data/ monté dans le conteneur)
+  - name: excel
+    tables:
+      - name: donnees_rh
+        meta:
+          external_location: "read_xlsx('{{ env_var('DATA_DIR', '/data') }}/donnees_rh.xlsx')"
+      - name: donnees_sportive
+        meta:
+          external_location: "read_xlsx('{{ env_var('DATA_DIR', '/data') }}/donnees_sportive.xlsx', all_varchar = true)"

@@ -1,0 +1,31 @@
+name: sport_data
+version: "1.0.0"
+config-version: 2
+
+# Nom de la connexion à utiliser, définie dans profiles.yml
+profile: sport_data
+
+model-paths: ["models"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+models:
+  sport_data:
+    # Staging : une vue par source, renommage et typage uniquement
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+# Seuils de validation modifiables sans toucher au SQL (dossier seeds/)
+seeds:
+  sport_data:
+    +schema: seeds
+
+vars:
+  adresse_entreprise: "1362 Av. des Platanes, 34970 Lattes"

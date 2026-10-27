@@ -1,0 +1,20 @@
+# Connexions dbt (pas les schémas) : dbt-duckdb, qui lit MinIO via httpfs
+sport_data:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/duckdb/warehouse.duckdb') }}"
+      threads: 4
+      extensions:
+        - httpfs
+        - delta
+        - excel
+      secrets:
+        - type: s3
+          key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
+          secret: "{{ env_var('MINIO_SECRET_KEY') }}"
+          endpoint: "{{ env_var('S3_ENDPOINT', 'minio:9000') }}"
+          url_style: "{{ env_var('S3_URL_STYLE', 'path') }}"
+          use_ssl: "{{ env_var('S3_USE_SSL', 'false') }}"
+          region: eu-west-3
