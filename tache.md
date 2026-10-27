@@ -160,3 +160,15 @@ A faire: Script python consumer_minio/ consumer_slack
     Traitement données avec dbt
     écriture dbt dans postgres-dwh
     connexion power bi
+
+## 26/10/2026
+consumer slack ok
+problème cohérence dans generator:
+    distance tennis
+    vitesse running pas des pros
+    vitesse voile
+    distance basket
+    triathlon
+    distance running trop long
+
+connecter les bdd postgres a dbeaver

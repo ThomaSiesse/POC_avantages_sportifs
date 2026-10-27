@@ -40,23 +40,22 @@ SPORT_COLUMNS = {"ID salarié": "id_salarie", "Pratique d'un sport": "sport"}
 
 # Sports avec distance : (distance min km, distance max km, vitesse min km/h, vitesse max km/h)
 DISTANCE_SPORTS = {
-    "Runing": (1, 100, 4, 22),
+    "Runing": (1, 50, 4, 15),
     "Randonnée": (5, 50, 1.5, 7.5),
-    "Triathlon": (5, 100, 8, 50),
+    "Triathlon": (5, 100, 8, 30),
     "Natation": (0.5, 10, 1, 6),
-    "Voile": (2, 40, 4, 40),
+    "Voile": (2, 40, 4, 30),
     "Équitation": (1, 30, 4, 15),
-    "Tennis": (0.2, 10, 0.1, 6),
-    "Badminton": (0.2, 10, 0.1, 6),
-    "Tennis de table": (0.2, 10, 0.1, 6),
+    "Tennis": (0.2, 10, 0.1, 3),
+    "Badminton": (0.2, 10, 0.1, 3),
+    "Tennis de table": (0.2, 10, 0.1, 3),
     "Football": (1, 15, 1, 10),
-    "Basketball": (1, 100, 1, 10),
+    "Basketball": (1, 10, 1, 10),
     "Rugby": (1, 15, 1, 10),
 }
 # Sports sans distance : (durée min minutes, durée max minutes)
 DURATION_SPORTS = {
     "Escalade": (30, 180),
-    "Tennis de table": (30, 90),
     "Judo": (30, 120),
     "Boxe": (30, 90),
 }
