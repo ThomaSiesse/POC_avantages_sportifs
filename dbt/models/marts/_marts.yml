@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: dim_salaries
+    description: Salariés avec mode de déplacement, contrôle de la distance et sport déclaré.
+    columns:
+      - name: id_salarie
+        tests: [unique, not_null]
+      - name: statut_controle_deplacement
+        description: ok / incoherent / non_calcule ; NULL si le mode de déplacement n'est pas sportif.
+
+  - name: fct_activites
+    description: Activités sportives valides des 12 derniers mois.
+    columns:
+      - name: id_activite
+        tests: [unique, not_null]
+      - name: id_salarie
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_salaries')
+                field: id_salarie
+
+  - name: mart_avantages_salaries
+    description: Éligibilité et coût de la prime sportive et des journées bien-être, par salarié.
+    columns:
+      - name: id_salarie
+        tests: [unique, not_null]
+      - name: montant_prime
+        description: 5 % du salaire brut annuel si éligible, sinon 0.
+      - name: cout_jours_bien_etre
+        description: Valeur des 5 journées (salaire brut / jours travaillés x 5) si éligible.

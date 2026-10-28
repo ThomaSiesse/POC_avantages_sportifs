@@ -18,9 +18,12 @@ models:
     intermediate:
       +materialized: view
       +schema: intermediate
+    # Marts : tables écrites dans postgres-dwh (lu par Power BI) + copie Parquet dans MinIO
     marts:
       +materialized: table
+      +database: dwh
       +schema: marts
+      +post-hook: "{{ export_minio_clean() }}"
 
 # Seuils de validation modifiables sans toucher au SQL (dossier seeds/)
 seeds:
@@ -29,3 +32,8 @@ seeds:
 
 vars:
   adresse_entreprise: "1362 Av. des Platanes, 34970 Lattes"
+  # Règles des avantages (note de cadrage)
+  taux_prime_sportive: 0.05 # 5 % du salaire annuel brut
+  nb_jours_bien_etre: 5
+  nb_activites_min_bien_etre: 15 # activités sur les 12 derniers mois
+  nb_jours_travailles_an: 218 # pour valoriser une journée bien-être (salaire / jours)

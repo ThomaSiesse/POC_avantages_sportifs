@@ -10,6 +10,12 @@ sport_data:
         - httpfs
         - delta
         - excel
+        - postgres
+      # Base Postgres qui reçoit les marts (les modèles marts ont database = dwh)
+      attach:
+        - path: "host={{ env_var('DWH_HOST', 'postgres-dwh') }} port={{ env_var('DWH_PORT', '5432') }} dbname={{ env_var('DWH_DB') }} user={{ env_var('DWH_USER') }} password={{ env_var('DWH_PASSWORD') }}"
+          type: postgres
+          alias: dwh
       secrets:
         - type: s3
           key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
