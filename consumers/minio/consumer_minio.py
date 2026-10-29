@@ -4,6 +4,7 @@ Consumer MinIO : lit le topic Debezium des activités et les stocke brutes dans 
 1. Lit les événements du topic Kafka (toutes les opérations, sans filtrage).
 2. Les regroupe par lots (BATCH_SIZE messages ou BATCH_TIMEOUT_S secondes).
 3. Ajoute chaque lot à la table Delta Lake s3://raw/activites.
+4. Lance dbt build toutes les DBT_INTERVAL_S secondes (marts + monitoring).
 
 Le nettoyage est fait ensuite par dbt (bronze → silver → gold).
 """
@@ -11,6 +12,7 @@ Le nettoyage est fait ensuite par dbt (bronze → silver → gold).
 import json
 import logging
 import os
+import subprocess
 import time
 from datetime import UTC, datetime
 
@@ -30,6 +32,8 @@ KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "sport.public.activites")
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "consumer-minio")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
 BATCH_TIMEOUT_S = int(os.getenv("BATCH_TIMEOUT_S", "30"))
+DBT_INTERVAL_S = int(os.getenv("DBT_INTERVAL_S", "600"))
+DBT_PROJECT_DIR = os.getenv("DBT_PROJECT_DIR", "/dbt")
 
 TABLE_URI = f"s3://{os.getenv('MINIO_BUCKET_RAW', 'raw')}/activites"
 STORAGE_OPTIONS = {
@@ -77,6 +81,22 @@ def write_batch(rows: list[dict]) -> None:
     logger.info("%d activités ajoutées à %s", len(rows), TABLE_URI)
 
 
+def run_dbt() -> None:
+    """dbt build complet ; un échec est loggé sans arrêter l'ingestion."""
+    logger.info("Lancement de dbt build")
+    result = subprocess.run(
+        ["dbt", "build", "--no-use-colors"],
+        cwd=DBT_PROJECT_DIR,
+        capture_output=True,
+        text=True,
+    )
+    resume = result.stdout.strip().splitlines()[-1:] or ["(pas de sortie)"]
+    if result.returncode == 0:
+        logger.info("dbt build terminé : %s", resume[0])
+    else:
+        logger.error("dbt build en échec :\n%s", result.stdout[-3000:])
+
+
 def main() -> None:
     consumer = Consumer(
         {
@@ -91,6 +111,7 @@ def main() -> None:
 
     rows = []
     last_flush = time.monotonic()
+    last_dbt = time.monotonic() - DBT_INTERVAL_S  # premier build dès le démarrage
     while True:
         msg = consumer.poll(1.0)
         if msg is not None and not msg.error() and msg.value() is not None:
@@ -104,6 +125,10 @@ def main() -> None:
             rows = []
         if lot_plein or delai_depasse:
             last_flush = time.monotonic()
+
+        if time.monotonic() - last_dbt >= DBT_INTERVAL_S:
+            run_dbt()
+            last_dbt = time.monotonic()
 
 
 if __name__ == "__main__":

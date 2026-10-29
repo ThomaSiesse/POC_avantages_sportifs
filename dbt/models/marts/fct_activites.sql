@@ -1,4 +1,4 @@
--- Une ligne par activité valide (12 derniers mois), prête pour les visuels Power BI
+-- Une ligne par activité valide (12 derniers mois), prête pour les visuels Tableau
 select
     id_activite,
     id_salarie,

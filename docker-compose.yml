@@ -122,10 +122,18 @@ services:
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-} # vide = DRY RUN (messages seulement loggés)
       DATA_DIR: /app/data
       MAX_AGE_H: ${SLACK_MAX_AGE_H:-24} # pas de notification pour l'historique
+      # Suivi des envois dans postgres-dwh (monitoring.slack_messages, lu par Grafana)
+      DWH_HOST: postgres-dwh
+      DWH_PORT: 5432
+      DWH_USER: ${DWH_USER:-dwh}
+      DWH_PASSWORD: ${DWH_PASSWORD:-dwh}
+      DWH_DB: ${DWH_DB:-analytics}
     volumes:
       - ./data:/app/data:ro # donnees_rh.xlsx pour les prénoms / noms
     depends_on:
       kafka:
+        condition: service_healthy
+      postgres-dwh:
         condition: service_healthy
     restart: unless-stopped
 
@@ -154,6 +162,8 @@ services:
       DWH_DB: ${DWH_DB:-analytics}
       DBT_PROJECT_DIR: /dbt
       DBT_PROFILES_DIR: /dbt
+      DBT_INTERVAL_S: ${DBT_INTERVAL_S:-600} # dbt build toutes les 10 min
+      DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
       DATA_DIR: /data # fichiers Excel RH / Sportive lus par dbt
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-} # SerpApi (Google Maps) : distances domicile-travail
     volumes:
@@ -202,7 +212,7 @@ services:
       AWS_REGION: eu-west-3
     restart: "no"
   # ---------------------------------------------------------------------------
-  # 5. Data warehouse : PostgreSQL qui reçoit les marts dbt (lu par Power BI)
+  # 5. Data warehouse : PostgreSQL qui reçoit les marts dbt (lu par Tableau)
   # ---------------------------------------------------------------------------
   postgres-dwh:
     image: postgres:16
@@ -212,7 +222,7 @@ services:
       POSTGRES_PASSWORD: ${DWH_PASSWORD:-dwh}
       POSTGRES_DB: ${DWH_DB:-analytics}
     ports:
-      - "5436:5432" # Power BI se connecte sur localhost:5436 (5433 déjà utilisé)
+      - "5436:5432" # Tableau se connecte sur localhost:5436 (5433 déjà utilisé)
     volumes:
       - postgres_dwh_data:/var/lib/postgresql/data
     healthcheck:
@@ -221,7 +231,37 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # 6. Monitoring : Grafana (volumétrie et état du pipeline)
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Lus par provisioning/datasources/datasources.yml
+      SOURCE_DB_USER: ${SOURCE_DB_USER:-app}
+      SOURCE_DB_PASSWORD: ${SOURCE_DB_PASSWORD:-app}
+      SOURCE_DB_NAME: ${SOURCE_DB_NAME:-sport}
+      DWH_USER: ${DWH_USER:-dwh}
+      DWH_PASSWORD: ${DWH_PASSWORD:-dwh}
+      DWH_DB: ${DWH_DB:-analytics}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      postgres-source:
+        condition: service_healthy
+      postgres-dwh:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
+  grafana_data:
   postgres_source_data:
   postgres_dwh_data:
   minio_data:

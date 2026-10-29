@@ -1,0 +1,28 @@
+# Sources de données créées au démarrage de Grafana (identifiants lus dans l'environnement)
+apiVersion: 1
+
+datasources:
+  - name: Postgres source
+    uid: pg-source
+    type: grafana-postgresql-datasource
+    url: postgres-source:5432
+    user: $SOURCE_DB_USER
+    secureJsonData:
+      password: $SOURCE_DB_PASSWORD
+    jsonData:
+      database: $SOURCE_DB_NAME
+      sslmode: disable
+      postgresVersion: 1600
+
+  - name: Postgres DWH
+    uid: pg-dwh
+    type: grafana-postgresql-datasource
+    url: postgres-dwh:5432
+    user: $DWH_USER
+    secureJsonData:
+      password: $DWH_PASSWORD
+    jsonData:
+      database: $DWH_DB
+      sslmode: disable
+      postgresVersion: 1600
+    isDefault: true

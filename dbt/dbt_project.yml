@@ -18,12 +18,17 @@ models:
     intermediate:
       +materialized: view
       +schema: intermediate
-    # Marts : tables écrites dans postgres-dwh (lu par Power BI) + copie Parquet dans MinIO
+    # Marts : tables écrites dans postgres-dwh (lu par Tableau) + copie Parquet dans MinIO
     marts:
       +materialized: table
       +database: dwh
       +schema: marts
       +post-hook: "{{ export_minio_clean() }}"
+    # Monitoring : une photo de l'état du pipeline à chaque dbt build (lue par Grafana)
+    monitoring:
+      +materialized: incremental
+      +database: dwh
+      +schema: monitoring
 
 # Seuils de validation modifiables sans toucher au SQL (dossier seeds/)
 seeds:

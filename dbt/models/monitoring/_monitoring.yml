@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: mon_etat_pipeline
+    description: Photo de l'état du pipeline à chaque dbt build (volumes par couche, fraîcheur, avantages).
+    columns:
+      - name: execute_le
+        tests: [not_null]
+
+  - name: mon_rejets_activites
+    description: Activités rejetées par motif, à chaque dbt build.
+    columns:
+      - name: motif_rejet
+        tests: [not_null]

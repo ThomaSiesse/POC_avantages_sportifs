@@ -1,0 +1,9 @@
+# Charge les tableaux de bord JSON du dossier grafana/dashboards
+apiVersion: 1
+
+providers:
+  - name: pipeline
+    folder: Sport Data
+    type: file
+    options:
+      path: /etc/grafana/dashboards

@@ -5,6 +5,7 @@ Consumer Slack : lit le topic Debezium des activités et félicite les salariés
 2. Lit les nouvelles activités du topic Kafka.
 3. Ignore les activités anciennes ou incohérentes.
 4. Envoie un message de félicitations via le webhook Slack.
+5. Trace chaque activité traitée dans postgres-dwh (monitoring.slack_messages, lu par Grafana).
 """
 
 import json
@@ -14,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+import psycopg
 import requests
 from confluent_kafka import Consumer
 
@@ -43,6 +45,20 @@ MESSAGES = {
 DEFAULT_DISTANCE = "Bravo {nom} ! {distance} km de {sport} en {duree} ! 💪🏅"
 DEFAULT_DUREE = "Bravo {nom} ! {duree} de {sport}, quelle séance ! 💪🏅"
 
+CREATE_TABLE = """
+    CREATE SCHEMA IF NOT EXISTS monitoring;
+    CREATE TABLE IF NOT EXISTS monitoring.slack_messages (
+        traite_le   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        id_activite BIGINT,
+        type_sport  TEXT,
+        statut      TEXT NOT NULL  -- envoye, dry_run, erreur, rejete, ignore
+    )
+"""
+INSERT_MESSAGE = """
+    INSERT INTO monitoring.slack_messages (id_activite, type_sport, statut)
+    VALUES (%s, %s, %s)
+"""
+
 
 def load_salaries() -> dict[int, str]:
     """Retourne {id_salarie: "Prénom Nom"} à partir des données RH."""
@@ -51,20 +67,32 @@ def load_salaries() -> dict[int, str]:
     return dict(zip(df_rh["ID salarié"].astype(int), noms))
 
 
-def is_valid(activite: dict, duree: timedelta) -> bool:
-    """Nouvelle activité (op = "c"), récente, avec une durée et une vitesse réalistes."""
-    if activite.get("__op") != "c":
-        return False
-    if not timedelta(0) < duree <= timedelta(hours=MAX_DURATION_H):
-        return False
+def connect_dwh() -> psycopg.Connection:
+    conn = psycopg.connect(
+        host=os.getenv("DWH_HOST", "localhost"),
+        port=int(os.getenv("DWH_PORT", "5436")),
+        user=os.getenv("DWH_USER", "dwh"),
+        password=os.getenv("DWH_PASSWORD", "dwh"),
+        dbname=os.getenv("DWH_DB", "analytics"),
+        autocommit=True,
+    )
+    conn.execute(CREATE_TABLE)
+    return conn
+
+
+def check(activite: dict, duree: timedelta) -> str:
+    """ignore (historique / snapshot), rejete (incohérente) ou ok."""
     date_fin = datetime.fromisoformat(activite["date_fin"])
-    if date_fin < datetime.now(UTC) - timedelta(hours=MAX_AGE_H):
-        return False
+    if activite.get("__op") != "c" or date_fin < datetime.now(UTC) - timedelta(hours=MAX_AGE_H):
+        return "ignore"
+    if not timedelta(0) < duree <= timedelta(hours=MAX_DURATION_H):
+        return "rejete"
     distance_m = activite["distance_m"]
     if distance_m is not None:
         vitesse_kmh = (distance_m / 1000) / (duree.total_seconds() / 3600)
-        return 0 < vitesse_kmh <= MAX_SPEED_KMH
-    return True
+        if not 0 < vitesse_kmh <= MAX_SPEED_KMH:
+            return "rejete"
+    return "ok"
 
 
 def format_duree(duree: timedelta) -> str:
@@ -90,19 +118,26 @@ def build_message(activite: dict, nom: str, duree: timedelta) -> str:
     return message
 
 
-def send_to_slack(message: str) -> None:
+def send_to_slack(message: str) -> str:
+    """Retourne le statut d'envoi : envoye, dry_run ou erreur."""
     if not SLACK_WEBHOOK_URL:
         logger.info("[DRY RUN] %s", message)
-        return
-    response = requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
+        return "dry_run"
+    try:
+        response = requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
+    except requests.RequestException as e:
+        logger.error("Slack injoignable : %s", e)
+        return "erreur"
     if response.ok:
         logger.info("Message envoyé : %s", message)
-    else:
-        logger.error("Erreur Slack %d : %s", response.status_code, response.text)
+        return "envoye"
+    logger.error("Erreur Slack %d : %s", response.status_code, response.text)
+    return "erreur"
 
 
 def main() -> None:
     salaries = load_salaries()
+    dwh = connect_dwh()
     consumer = Consumer(
         {
             "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
@@ -123,8 +158,10 @@ def main() -> None:
         duree = datetime.fromisoformat(activite["date_fin"]) - datetime.fromisoformat(
             activite["date_debut"]
         )
-        if nom and is_valid(activite, duree):
-            send_to_slack(build_message(activite, nom, duree))
+        statut = check(activite, duree) if nom else "rejete"
+        if statut == "ok":
+            statut = send_to_slack(build_message(activite, nom, duree))
+        dwh.execute(INSERT_MESSAGE, (activite["id_activite"], activite["type_sport"], statut))
 
 
 if __name__ == "__main__":
