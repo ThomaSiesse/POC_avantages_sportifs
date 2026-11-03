@@ -1,0 +1,11 @@
+
+    
+    
+    truncate table "warehouse"."seeds"."regles_deplacement";
+    -- dbt seed --
+    
+          COPY "warehouse"."seeds"."regles_deplacement" FROM '/dbt/seeds/regles_deplacement.csv' (FORMAT CSV, HEADER TRUE, DELIMITER ',')
+        
+
+;
+  

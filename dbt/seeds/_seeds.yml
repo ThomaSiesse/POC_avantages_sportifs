@@ -13,3 +13,14 @@ seeds:
       column_types:
         distance_max_km: double
         travel_mode: integer # SerpApi : 1 = vélo, 2 = marche
+
+  - name: parametres_avantages
+    description: >
+      Paramètres des avantages (note de cadrage), modifiables par le métier.
+      Pris en compte au prochain dbt build, qui recalcule tout l'historique des marts.
+    config:
+      column_types:
+        taux_prime_sportive: decimal(5, 4) # 0.05 = 5 % du salaire annuel brut
+        nb_jours_bien_etre: integer
+        nb_activites_min_bien_etre: integer # activités sur les 12 derniers mois
+        nb_jours_travailles_an: integer # pour valoriser une journée bien-être

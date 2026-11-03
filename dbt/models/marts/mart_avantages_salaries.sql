@@ -1,8 +1,12 @@
 -- Une ligne par salarié : éligibilité et coût des deux avantages
 --   Prime sportive   : déplacement domicile-travail sportif déclaré, non incohérent
 --   Jours bien-être  : au moins N activités sur les 12 derniers mois
--- Paramètres dans les vars de dbt_project.yml
-with salaries as (
+-- Paramètres dans seeds/parametres_avantages.csv (taux modifiable, historique recalculé)
+with parametres as (
+    select * from {{ ref('parametres_avantages') }}
+),
+
+salaries as (
     select * from {{ ref('dim_salaries') }}
 ),
 
@@ -26,21 +30,24 @@ eligibilite as (
         salaries.deplacement_sportif
             and salaries.statut_controle_deplacement <> 'incoherent' as eligible_prime,
         coalesce(activites.nb_activites, 0)
-            >= {{ var('nb_activites_min_bien_etre') }} as eligible_bien_etre
+            >= parametres.nb_activites_min_bien_etre as eligible_bien_etre
     from salaries
+    cross join parametres
     left join activites using (id_salarie)
 )
 
 select
-    *,
+    eligibilite.*,
+    parametres.taux_prime_sportive,
     -- distance non vérifiable (adresse introuvable) : éligible sur déclaration, à contrôler
     eligible_prime and statut_controle_deplacement = 'non_calcule' as prime_a_verifier,
     case when eligible_prime
-        then cast(salaire_brut * {{ var('taux_prime_sportive') }} as decimal(12, 2)) else 0
+        then cast(salaire_brut * parametres.taux_prime_sportive as decimal(12, 2)) else 0
     end as montant_prime,
-    case when eligible_bien_etre then {{ var('nb_jours_bien_etre') }} else 0 end as nb_jours_bien_etre,
+    case when eligible_bien_etre then parametres.nb_jours_bien_etre else 0 end as nb_jours_bien_etre,
     case when eligible_bien_etre
-        then cast(salaire_brut / {{ var('nb_jours_travailles_an') }} * {{ var('nb_jours_bien_etre') }} as decimal(12, 2))
+        then cast(salaire_brut / parametres.nb_jours_travailles_an * parametres.nb_jours_bien_etre as decimal(12, 2))
         else 0
     end as cout_jours_bien_etre
 from eligibilite
+cross join parametres

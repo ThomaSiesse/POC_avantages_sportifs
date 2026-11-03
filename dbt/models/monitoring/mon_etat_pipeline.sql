@@ -18,7 +18,8 @@ avantages as (
     select
         count(*) filter (where eligible_prime) as nb_eligibles_prime,
         count(*) filter (where eligible_bien_etre) as nb_eligibles_bien_etre,
-        sum(montant_prime) + sum(cout_jours_bien_etre) as cout_total_avantages
+        sum(montant_prime) + sum(cout_jours_bien_etre) as cout_total_avantages,
+        max(taux_prime_sportive) as taux_prime_sportive  -- taux appliqué à ce build
     from {{ ref('mart_avantages_salaries') }}
 ),
 

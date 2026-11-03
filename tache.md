@@ -95,21 +95,17 @@ Projet_12/
 │   ├── Dockerfile                     ✅
 │   ├── requirements.txt               ✅ psycopg, pandas, openpyxl
 │   └── generator.py                   ✅
-│
-├── producer/                          ✅ build: ./producer (LISTEN → Kafka)
-│   ├── Dockerfile                     ❌
-│   ├── requirements.txt               ❌ psycopg, confluent-kafka
-│   └── producer.py                    ❌
+│                 ❌
 │
 ├── consumers/
 │   ├── slack/                         ✅ 
 │   │   ├── Dockerfile                 ✅
 │   │   ├── requirements.txt           ✅ 
-│   │   └── consumer_slack.py          ❌ filtre + envoi au webhook
+│   │   └── consumer_slack.py          ✅ 
 │   └── minio/                         ✅ 
 │       ├── Dockerfile                 ✅
 │       ├── requirements.txt           ✅ confluent-kafka, boto3, dbt-duckdb
-│       └── consumer_minio.py          ❌ écrit dans le bucket raw + lance dbt
+│       └── consumer_minio.py          ✅ 
 │
 └── dbt/                               ✅ monté dans consumer-minio (/dbt)
     ├── dbt_project.yml                ❌
@@ -172,3 +168,41 @@ problème cohérence dans generator:
     distance running trop long
 
 connecter les bdd postgres a dbeaver
+
+## 27/10/2026
+corection generator
+connection dbeaver
+création consumer minio
+dbt staging: lecture base minio
+             lecture fichier rh + sportives
+    intermediate: data format time stamp 
+                  Filtre trajet vélo/rando/trotinnette réellement possible
+                  distance positive
+                  date valide
+
+## 28/10/2026
+ dbt marts
+ lecture dans postgres dwh et minio
+
+s'occuper du monitoring des données
+
+## 29/10/2026
+
+### Reste A faire:
+
+    connexion power BI
+
+    objectif du jours: monitoring avec grafana
+
+## 02/11/2026
+Tableau:
+Prime 5% = Nombre de prime
+        Prime total
+        Prime max/MIN
+        représentation des déplacement
+
+Journée = Nombre de personne disposant
+        Nombre moyen de séances de sport/ an
+        Sport le +pratiqué
+        
+impossible à piloter ( supprimer ça)

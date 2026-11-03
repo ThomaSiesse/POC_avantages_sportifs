@@ -1,0 +1,1 @@
+select moyen_deplacement, count(*) nb, round(avg(distance_km),1) moy_km, max(distance_km) max_km, any_value(distance_max_km) seuil from "warehouse"."main_intermediate"."int_deplacements_controles" where statut='ok' group by all
